@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Stats Overlay</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1920px;
+            height: 1080px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(15px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .nickname {
+            display: flex;
+            align-items: center;
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-top: 200px; /* Adjusted for better placement */
+        }
+
+        .nickname img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        .elo {
+            font-size: 5em;
+            font-weight: bold;
+            margin: 10px 0; /* Adjusted for better spacing */
+        }
+
+        .elo-delta {
+            font-size: 1em;
+            font-weight: normal;
+            color: #0f0; /* Green for positive ELO delta */
+        }
+
+        .elo-delta.negative {
+            color: #f00; /* Red for negative ELO delta */
+        }
+
+        .match-stats {
+            display: flex;
+            justify-content: space-around;
+            width: 80%;
+            font-size: 2.3em;
+            margin-bottom: 200px; /* Adjusted to move stats up */
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat span {
+            font-size: 0.8em;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="nickname">
+        <span id="nickname">Nickname</span>
+        <img id="levelImage" src="" alt="Skill Level">
+    </div>
+    <div class="elo">
+        <span id="elo">--</span>
+        <span id="elo-delta" class="elo-delta"></span> ELO
+    </div>
+    <div class="match-stats">
+        <div class="stat" id="kills">
+            <div>--</div>
+            <span>KILLS</span>
+        </div>
+        <div class="stat" id="deaths">
+            <div>--</div>
+            <span>DEATHS</span>
+        </div>
+        <div class="stat" id="kd">
+            <div>--</div>
+            <span>K/D</span>
+        </div>
+        <div class="stat" id="kr">
+            <div>--</div>
+            <span>K/R</span>
+        </div>
+        <div class="stat" id="hs">
+            <div>--</div>
+            <span>HS %</span>
+        </div>
+    </div>
+
+    <script>
+        async function fetchLastMatchStats() {
+            try {
+                const response = await fetch('/last-match');
+                const stats = await response.json();
+
+                // Debug log to confirm stats
+                console.log('Fetched stats:', stats);
+
+                // Update nickname and skill level image
+                document.getElementById('nickname').textContent = stats.nickname;
+                document.getElementById('levelImage').src = `/images/${stats.level}.png`;
+
+                // Update ELO and ELO delta
+                const eloElement = document.getElementById('elo');
+                const eloDeltaElement = document.getElementById('elo-delta');
+
+                const elo = stats.elo;
+                const eloDelta = stats.elo_delta;
+
+                eloElement.textContent = `${elo}`;
+                if (eloDelta !== undefined && eloDelta !== null && eloDelta !== 0) {
+                    eloDeltaElement.textContent = `(${eloDelta > 0 ? '+' : ''}${eloDelta})`;
+                    eloDeltaElement.className = `elo-delta ${eloDelta > 0 ? '' : 'negative'}`;
+                } else {
+                    eloDeltaElement.textContent = '';
+                }
+
+                // Update match stats
+                document.getElementById('kills').querySelector('div').textContent = stats.Kills;
+                document.getElementById('deaths').querySelector('div').textContent = stats.Deaths;
+                document.getElementById('kd').querySelector('div').textContent = stats['K/D Ratio'];
+                document.getElementById('kr').querySelector('div').textContent = stats['K/R Ratio'];
+                document.getElementById('hs').querySelector('div').textContent = stats['Headshots %'];
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        }
+
+        // Fetch stats when the page loads
+        fetchLastMatchStats();
+    </script>
+</body>
+</html>
