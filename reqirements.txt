@@ -1,7 +1,4 @@
 flask
 flask_cors
 requests
-obswebsocket
-threading
-json
-os
+obs-websocket-py
