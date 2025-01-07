@@ -10,11 +10,23 @@ app = Flask(__name__, static_folder="../frontend")
 CORS(app)
 
 # Constants
-API_KEY = "f3e9b199-425a-4c6d-8dd7-8a447566ee42"
-PLAYER_NICKNAME = "DJ_SNIP"
-OBS_HOST = "localhost"
-OBS_PORT = 4455
-OBS_PASSWORD = "EOKYunCgKTn5KjlG"
+def load_config(file_path="config.txt"):
+    config = {}
+    with open(file_path, "r") as file:
+        for line in file:
+            key, value = line.strip().split("=", 1)
+            config[key] = value
+    return config
+
+config = load_config()
+API_KEY = config.get("API_KEY")
+PLAYER_NICKNAME = onfig.get("PLAYER_NICKNAME")
+OBS_HOST = config.get("OBS_HOST")
+OBS_PORT = int(config.get("OBS_PORT", 4455))
+OBS_PASSWORD = config.get("OBS_PASSWORD")
+OBS_SCENE_NAME = config.get("OBS_SCENE_NAME")
+OBS_SOURCE_NAME = config.get("OBS_SOURCE_NAME")
+
 ELO_DATA_FILE = "elo_data.json"
 
 BASE_URL = "https://open.faceit.com/data/v4"
@@ -106,43 +118,49 @@ def get_last_match_stat(nickname):
 
 
 def monitor_new_matches(nickname):
-    previous_game_count = len(get_player_history(nickname))
+    previous_match_id = get_last_match_id(nickname)
     trigger_obs_overlay()
 
     while True:
-        time.sleep(5)
+        time.sleep(10)
 
-        current_game_count = len(get_player_history(nickname))
-        if current_game_count > previous_game_count:
-            previous_game_count = current_game_count
+        current_match_id = get_last_match_id(nickname)
+        print(f"Current Match ID: {current_match_id}, Previous Match ID: {previous_match_id}")
+
+        if current_match_id != previous_match_id:
+            previous_match_id = current_match_id
             trigger_obs_overlay()
 
-def get_player_history(nickname):
+def get_last_match_id(nickname):
+
     player_response = requests.get(f"{BASE_URL}/players?nickname={nickname}", headers=HEADERS)
     player_data = player_response.json()
+
     match_response = requests.get(f"{BASE_URL}/players/{player_data['player_id']}/history?game=cs2", headers=HEADERS)
-    return match_response.json()["items"]
+    match_history = match_response.json()["items"]
+
+    if match_history:
+        return match_history[0]["match_id"]
+    return None
+
 
 def trigger_obs_overlay():
     try:
-
-        #stats = get_last_match_stat(PLAYER_NICKNAME)
-        #print(f"Refreshed stats: {stats}")
-
         ws.connect()
         print("Connected to OBS WebSocket")
 
+        # Get the scene item for the overlay
+        scene_items = ws.call(obs_requests.GetSceneItemList(sceneName=OBS_SCENE_NAME))
+        overlay_item = next(item for item in scene_items.getSceneItems() if item["sourceName"] == OBS_SOURCE_NAME)
 
-        scene_items = ws.call(obs_requests.GetSceneItemList(sceneName="Scene"))
-        overlay_item = next(item for item in scene_items.getSceneItems() if item["sourceName"] == "Overlay")
-
-
-        ws.call(obs_requests.SetSceneItemEnabled(sceneName="Scene", sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=True))
+        # Enable the overlay
+        ws.call(obs_requests.SetSceneItemEnabled(sceneName=OBS_SCENE_NAME, sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=True))
         print("Overlay enabled")
 
-        time.sleep(20)
+        time.sleep(20)  # Show overlay for 20 seconds
 
-        ws.call(obs_requests.SetSceneItemEnabled(sceneName="Scene", sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=False))
+        # Disable the overlay
+        ws.call(obs_requests.SetSceneItemEnabled(sceneName=OBS_SCENE_NAME, sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=False))
         print("Overlay disabled")
 
         ws.disconnect()
