@@ -23,11 +23,7 @@ def load_config(file_path="config.txt"):
 config = load_config()
 API_KEY = config.get("API_KEY")
 PLAYER_NICKNAME = config.get("PLAYER_NICKNAME")
-OBS_HOST = config.get("OBS_HOST")
-OBS_PORT = int(config.get("OBS_PORT", 4455))
-OBS_PASSWORD = config.get("OBS_PASSWORD")
-OBS_SCENE_NAME = config.get("OBS_SCENE_NAME")
-OBS_SOURCE_NAME = config.get("OBS_SOURCE_NAME")
+
 
 ELO_DATA_FILE = "elo_data.json"
 
