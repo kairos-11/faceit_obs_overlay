@@ -10,7 +10,7 @@
             padding: 0;
             width: 1920px;
             height: 1080px;
-            background: rgba(0, 255, 0, 0);
+            background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(15px);
             display: flex;
             flex-direction: column;
@@ -19,6 +19,14 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        body.visible {
+            opacity: 1;
+            transform: scale(1);
         }
 
         .nickname {
@@ -26,7 +34,7 @@
             align-items: center;
             font-size: 2.5em;
             font-weight: bold;
-            margin-top: 200px; /* Adjusted for better placement */
+            margin-top: 200px;
         }
 
         .nickname img {
@@ -39,17 +47,17 @@
         .elo {
             font-size: 5em;
             font-weight: bold;
-            margin: 10px 0; /* Adjusted for better spacing */
+            margin: 10px 0;
         }
 
         .elo-delta {
             font-size: 1em;
             font-weight: normal;
-            color: #0f0; /* Green for positive ELO delta */
+            color: #0f0;
         }
 
         .elo-delta.negative {
-            color: #f00; /* Red for negative ELO delta */
+            color: #f00;
         }
 
         .match-stats {
@@ -57,7 +65,7 @@
             justify-content: space-around;
             width: 80%;
             font-size: 2.3em;
-            margin-bottom: 200px; /* Adjusted to move stats up */
+            margin-bottom: 200px;
         }
 
         .stat {
@@ -104,47 +112,47 @@
         </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script>
-        async function fetchLastMatchStats() {
-            try {
-                const response = await fetch('/last-match');
-                const stats = await response.json();
+        function updateOverlay(stats) {
+            document.getElementById('nickname').textContent = stats.nickname;
+            document.getElementById('levelImage').src = `/images/${stats.level}.png`;
 
-                // Debug log to confirm stats
-                console.log('Fetched stats:', stats);
+            const eloElement = document.getElementById('elo');
+            const eloDeltaElement = document.getElementById('elo-delta');
 
-                // Update nickname and skill level image
-                document.getElementById('nickname').textContent = stats.nickname;
-                document.getElementById('levelImage').src = `/images/${stats.level}.png`;
-
-                // Update ELO and ELO delta
-                const eloElement = document.getElementById('elo');
-                const eloDeltaElement = document.getElementById('elo-delta');
-
-                const elo = stats.elo;
-                const eloDelta = stats.elo_delta;
-
-                eloElement.textContent = `${elo}`;
-                if (eloDelta !== undefined && eloDelta !== null && eloDelta !== 0) {
-                    eloDeltaElement.textContent = `(${eloDelta > 0 ? '+' : ''}${eloDelta})`;
-                    eloDeltaElement.className = `elo-delta ${eloDelta > 0 ? '' : 'negative'}`;
-                } else {
-                    eloDeltaElement.textContent = '';
-                }
-
-                // Update match stats
-                document.getElementById('kills').querySelector('div').textContent = stats.Kills;
-                document.getElementById('deaths').querySelector('div').textContent = stats.Deaths;
-                document.getElementById('kd').querySelector('div').textContent = stats['K/D Ratio'];
-                document.getElementById('kr').querySelector('div').textContent = stats['K/R Ratio'];
-                document.getElementById('hs').querySelector('div').textContent = stats['Headshots %'];
-            } catch (error) {
-                console.error('Error fetching stats:', error);
+            eloElement.textContent = `${stats.elo}`;
+            if (stats.elo_delta !== undefined && stats.elo_delta !== null && stats.elo_delta !== 0) {
+                eloDeltaElement.textContent = `(${stats.elo_delta > 0 ? '+' : ''}${stats.elo_delta})`;
+                eloDeltaElement.className = `elo-delta ${stats.elo_delta > 0 ? '' : 'negative'}`;
+            } else {
+                eloDeltaElement.textContent = '';
             }
+
+            document.getElementById('kills').querySelector('div').textContent = stats.Kills;
+            document.getElementById('deaths').querySelector('div').textContent = stats.Deaths;
+            document.getElementById('kd').querySelector('div').textContent = stats['K/D Ratio'];
+            document.getElementById('kr').querySelector('div').textContent = stats['K/R Ratio'];
+            document.getElementById('hs').querySelector('div').textContent = stats['Headshots %'];
         }
 
-        // Fetch stats when the page loads
-        fetchLastMatchStats();
+        function showOverlay() {
+            document.body.classList.add('visible'); // Add the "visible" class to make the overlay appear
+        }
+
+        function hideOverlay() {
+            document.body.classList.remove('visible'); // Remove the "visible" class to make the overlay disappear
+        }
+
+        const socket = io.connect(window.location.origin);
+
+        socket.on('match_update', (stats) => {
+            console.log('Real-time update received:', stats);
+            updateOverlay(stats);
+            showOverlay();
+
+            setTimeout(hideOverlay, 10000); // Hide after 10 seconds
+        });
     </script>
 </body>
 </html>

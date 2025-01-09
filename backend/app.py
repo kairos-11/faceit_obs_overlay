@@ -1,13 +1,15 @@
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_socketio import SocketIO
 import requests
 import time
-from obswebsocket import obsws, requests as obs_requests
+
 import threading
 import json, os
 
 app = Flask(__name__, static_folder="../frontend")
 CORS(app)
+socketio = SocketIO(app)
 
 # Constants
 def load_config(file_path="config.txt"):
@@ -20,7 +22,7 @@ def load_config(file_path="config.txt"):
 
 config = load_config()
 API_KEY = config.get("API_KEY")
-PLAYER_NICKNAME = onfig.get("PLAYER_NICKNAME")
+PLAYER_NICKNAME = config.get("PLAYER_NICKNAME")
 OBS_HOST = config.get("OBS_HOST")
 OBS_PORT = int(config.get("OBS_PORT", 4455))
 OBS_PASSWORD = config.get("OBS_PASSWORD")
@@ -34,8 +36,6 @@ HEADERS = {
     "Authorization": f"Bearer {API_KEY}"
 }
 
-# OBS WebSocket setup
-ws = obsws(OBS_HOST, OBS_PORT, OBS_PASSWORD)
 
 @app.route('/base-stats', methods=['GET'])
 def base_stats():
@@ -44,7 +44,7 @@ def base_stats():
 
 @app.route('/last-match', methods=['GET'])
 def last_match():
-    match_stats = get_last_match_stat(PLAYER_NICKNAME)
+    match_stats = fetch_last_match_data()
     return jsonify(match_stats)
 
 @app.route('/', methods=['GET'])
@@ -89,6 +89,9 @@ def calculate_elo_delta(current_elo, previous_elo):
         return 0  # No previous data, assume no delta
     return current_elo - previous_elo
 
+def fetch_last_match_data():
+    match_stats = get_last_match_stat(PLAYER_NICKNAME)
+    return match_stats
 
 def get_last_match_stat(nickname):
     player_response = requests.get(f"{BASE_URL}/players?nickname={nickname}", headers=HEADERS)
@@ -119,17 +122,18 @@ def get_last_match_stat(nickname):
 
 def monitor_new_matches(nickname):
     previous_match_id = get_last_match_id(nickname)
-    trigger_obs_overlay()
-
     while True:
-        time.sleep(10)
+        time.sleep(5)
 
         current_match_id = get_last_match_id(nickname)
         print(f"Current Match ID: {current_match_id}, Previous Match ID: {previous_match_id}")
 
         if current_match_id != previous_match_id:
+            match_data = get_last_match_stat(nickname)
             previous_match_id = current_match_id
-            trigger_obs_overlay()
+            update_frontend_with_data(match_data)
+            time.sleep(10)
+
 
 def get_last_match_id(nickname):
 
@@ -144,34 +148,14 @@ def get_last_match_id(nickname):
     return None
 
 
-def trigger_obs_overlay():
-    try:
-        ws.connect()
-        print("Connected to OBS WebSocket")
-
-        # Get the scene item for the overlay
-        scene_items = ws.call(obs_requests.GetSceneItemList(sceneName=OBS_SCENE_NAME))
-        overlay_item = next(item for item in scene_items.getSceneItems() if item["sourceName"] == OBS_SOURCE_NAME)
-
-        # Enable the overlay
-        ws.call(obs_requests.SetSceneItemEnabled(sceneName=OBS_SCENE_NAME, sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=True))
-        print("Overlay enabled")
-
-        time.sleep(20)  # Show overlay for 20 seconds
-
-        # Disable the overlay
-        ws.call(obs_requests.SetSceneItemEnabled(sceneName=OBS_SCENE_NAME, sceneItemId=overlay_item["sceneItemId"], sceneItemEnabled=False))
-        print("Overlay disabled")
-
-        ws.disconnect()
-    except Exception as e:
-        print(f"OBS ERROR: {e}")
-
-
+def update_frontend_with_data(data):
+    # Emit match data to connected clients
+    socketio.emit('match_update', data)
+    print("update sent")
 
 if __name__ == "__main__":
-    # Start the Flask app in a separate thread (without debug mode)
-    flask_thread = threading.Thread(target=lambda: app.run(debug=False, use_reloader=False), daemon=True)
+    # Use SocketIO to run the app
+    flask_thread = threading.Thread(target=lambda: socketio.run(app, debug=False, use_reloader=False), daemon=True)
     flask_thread.start()
 
     # Start monitoring matches in the main thread
